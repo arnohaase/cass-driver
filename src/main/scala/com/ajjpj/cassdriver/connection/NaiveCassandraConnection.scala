@@ -4,6 +4,7 @@ import java.net.Socket
 
 import akka.actor.Actor
 import akka.util.ByteString
+import com.ajjpj.cassdriver.connection.protocol_v4.ProtocolV4
 
 
 /**
@@ -14,9 +15,18 @@ class NaiveCassandraConnection (config: CassandraConnectionConfig) extends Actor
 
   new Thread() {
     override def run(): Unit = {
+      var bs = ByteString.empty
+
       while (true) {
-        val byte = socket.getInputStream.read()
-        println("<==  " + Integer.toHexString(byte) + "\t" + byte.asInstanceOf[Char])
+        bs = bs.concat(ByteString(socket.getInputStream.read().asInstanceOf[Byte]))
+
+        ProtocolV4.parseResponse(Seq(bs), 0) match {
+          case Some(r) =>
+            println (r)
+            bs = bs.drop(r.numBytes)
+            println ("--> " + bs)
+          case None =>
+        }
       }
     }
   }.start()

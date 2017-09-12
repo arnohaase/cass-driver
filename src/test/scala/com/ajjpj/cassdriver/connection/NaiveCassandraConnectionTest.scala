@@ -3,8 +3,8 @@ package com.ajjpj.cassdriver.connection
 import java.net.InetAddress
 
 import akka.actor.Props
-import akka.util.ByteString
 import com.ajjpj.cassdriver.AbstractCassDriverTest
+import com.ajjpj.cassdriver.connection.protocol_v4.{MessageFlags, ProtocolV4}
 
 
 class NaiveCassandraConnectionTest extends AbstractCassDriverTest {
@@ -12,14 +12,19 @@ class NaiveCassandraConnectionTest extends AbstractCassDriverTest {
     val config = CassandraConnectionConfig(CassandraClusterConfig(), InetAddress.getLoopbackAddress, 9042)
     val conn = system.actorOf(Props(new NaiveCassandraConnection(config)))
 
-    conn ! ByteString(
-      0x04, 0x00, 0x00, 0x00, 0x01,
-      0x00, 0x00, 0x00, 0x16,
-      0x00, 0x01,
-      0x00, 0x0b, 'C', 'Q', 'L', '_', 'V', 'E', 'R', 'S', 'I', 'O', 'N',
-      0x00, 0x05, '3', '.', '2', '.', '1'
-    )
+    conn ! ProtocolV4.createStartupMessage(MessageFlags(false, false, false))
 
-    Thread.sleep(5000)
+    Thread.sleep(1000)
+  }
+
+  "A ChannelCassandraConnection" should "connect to Cassandra" in {
+    val config = CassandraConnectionConfig(CassandraClusterConfig(), InetAddress.getLoopbackAddress, 9042)
+    val conn = system.actorOf(Props(new AsyncSocketChannelCassandraConnection(config, self)))
+
+    expectMsg(AsyncSocketChannelCassandraConnection.Initialized)
+
+    conn ! AsyncSocketChannelCassandraConnection.RawRequest (ProtocolV4.createStartupMessage(MessageFlags(false, false, false)))
+
+    Thread.sleep(1000)
   }
 }
