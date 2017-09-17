@@ -1,0 +1,32 @@
+todo
+----
+* query, result set
+  * type coercion
+  * paging
+* errors
+* warnings
+* Auth
+* older protocol versions (?)
+* Snappy, LZ4
+
+questions
+---------
+* system.* tables
+* system.local in particular --> only "key='local'"? --> information about the queried node?
+* statement preparation is per server node - how best to have a globally 'prepared' statement
+  * server side GC?!
+  * prepare eagerly or lazily on other /all nodes?
+
+tuning / benchmarking
+---------------------
+* Netty, esp. epoll-native support
+* DirectByteBuffer
+
+ideas
+-----
+* Mock 'connection' implementation --> in-memory Cassandra
+* Hierarchy 'Cluster' -> 'Host' -> 'Connection' with separate 'Session'
+* Cluster knows Schemas, topology etc., Cluster has 'QueryPlan' (DataStax terminology)
+
+done
+----
