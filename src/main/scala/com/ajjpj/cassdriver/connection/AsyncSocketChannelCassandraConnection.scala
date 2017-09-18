@@ -3,6 +3,7 @@ package com.ajjpj.cassdriver.connection
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.{AsynchronousSocketChannel, CompletionHandler}
+import java.util.concurrent.TimeUnit
 
 import akka.actor.Status.Failure
 import akka.actor.{Actor, ActorRef}
@@ -23,7 +24,7 @@ object AsyncSocketChannelCassandraConnection {
 
   case object Initialized
   private case object TrySend
-  private case class DataSent(numBytes: Int)
+  private case class DataSent(numBytes: Long)
   private case object TriggerRead
   private case class RawDataFromServer (data: ByteString)
 }
@@ -167,20 +168,21 @@ class AsyncSocketChannelCassandraConnection (config: CassandraConnectionConfig, 
 
       log.debug("*** sending")
 
-      val sendByteBuffer = sendQueue
+      val sendByteBuffers = sendQueue
         .tail
         .foldLeft(sendQueue.head)((r,it) => r ++ it)
-        .toByteBuffer
+        .asByteBuffers
+        .toArray
 
       //TODO timeout
       //TODO tuning use channel.write(Array[ByteBuffer]
 
-      channel.write(sendByteBuffer, "", new CompletionHandler[Integer, String] {
+      channel.write(sendByteBuffers, 0, sendByteBuffers.length, 0, TimeUnit.SECONDS, "", new CompletionHandler[java.lang.Long, String] {
         override def failed (exc: Throwable, attachment: String)     = {
           log.debug(exc, "error sending")
           self ! Failure (exc)
         }
-        override def completed (result: Integer, attachment: String) = {
+        override def completed (result: java.lang.Long, attachment: String) = {
           log.debug("*** send completed")
           self ! DataSent(result)
         }
@@ -188,7 +190,7 @@ class AsyncSocketChannelCassandraConnection (config: CassandraConnectionConfig, 
     }
   }
 
-  private def onDataSent(numBytes: Int): Unit = {
+  private def onDataSent(numBytes: Long): Unit = {
     isSending = false
 
     var remainingSentLength = numBytes
@@ -198,7 +200,7 @@ class AsyncSocketChannelCassandraConnection (config: CassandraConnectionConfig, 
           sendQueue.remove (0)
           remainingSentLength -= bs.length
         case bs =>
-          sendQueue (0) = bs.drop (remainingSentLength)
+          sendQueue (0) = bs.drop (remainingSentLength.toInt)
           remainingSentLength = 0
       }
     }

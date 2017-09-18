@@ -23,6 +23,6 @@ class CassandraConnectionTest extends AbstractCassDriverTest {
     val reply2 = expectMsgType[CassResponse]
     println (reply2)
     
-    Thread.sleep(1000)
+//    Thread.sleep(1000)
   }
 }
