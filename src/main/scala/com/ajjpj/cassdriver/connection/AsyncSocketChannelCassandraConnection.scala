@@ -7,7 +7,6 @@ import java.util.concurrent.TimeUnit
 
 import akka.actor.Status.Failure
 import akka.actor.{Actor, ActorRef}
-import akka.util.ByteString
 import com.ajjpj.cassdriver.connection.api.QueryRequest
 import com.ajjpj.cassdriver.connection.protocol_v4.ProtocolV4
 import com.ajjpj.cassdriver.util.CassLogging
@@ -42,7 +41,8 @@ class AsyncSocketChannelCassandraConnection (config: CassandraConnectionConfig, 
     override def completed (result: Void, attachment: String) = self ! Initialized
   })
 
-  val readBuffer = ByteBuffer.allocateDirect(16384) //TODO tuning measure if allocateDirect improves performance
+  val readBuffer = ByteBuffer.allocateDirect(16384) //TODO deallocate in postStop
+  //TODO deallocate 'sendQueue' buffers in postStop
 
   /**
     * raw snippets sent from the server, stored in chronological order. Presence of more than one item may be due
@@ -58,7 +58,7 @@ class AsyncSocketChannelCassandraConnection (config: CassandraConnectionConfig, 
     * This has the desirable side effect of automatically batching several (small) frames in high-load scenarios, and it
     *  lays the foundation for explicit batching TODO tuning if explicit batching is even desirable
     */
-  val sendQueue = mutable.ArrayBuffer.empty[ByteString]
+  val sendQueue = mutable.ArrayBuffer.empty[ByteBuffer]
   var isSending = false
 
   private var curStreamNumber = 0
@@ -122,9 +122,9 @@ class AsyncSocketChannelCassandraConnection (config: CassandraConnectionConfig, 
     registerAndSend (ProtocolV4.createQueryMessage(nextStreamNumber, msg))
   }
 
-  private def registerAndSend(request: ByteString): Unit = {
+  private def registerAndSend(request: Array[ByteBuffer]): Unit = {
     inFlight += curStreamNumber -> InFlightData(sender)
-    sendQueue += request
+    sendQueue ++= request
     trySend()
   }
 
@@ -159,15 +159,8 @@ class AsyncSocketChannelCassandraConnection (config: CassandraConnectionConfig, 
 
       log.debug("*** sending")
 
-      val sendByteBuffers = sendQueue
-        .tail
-        .foldLeft(sendQueue.head)((r,it) => r ++ it)
-        .asByteBuffers
-        .toArray
-
       //TODO timeout
-
-      channel.write(sendByteBuffers, 0, sendByteBuffers.length, 0, TimeUnit.SECONDS, "", new CompletionHandler[java.lang.Long, String] {
+      channel.write(sendQueue.toArray, 0, sendQueue.size, 0, TimeUnit.SECONDS, "", new CompletionHandler[java.lang.Long, String] {
         override def failed (exc: Throwable, attachment: String)     = {
           log.debug(exc, "error sending")
           self ! Failure (exc)
@@ -183,17 +176,9 @@ class AsyncSocketChannelCassandraConnection (config: CassandraConnectionConfig, 
   private def onDataSent(numBytes: Long): Unit = {
     isSending = false
 
-    var remainingSentLength = numBytes
-    while (remainingSentLength > 0) {
-      sendQueue (0) match {
-        case bs if bs.length <= remainingSentLength =>
-          sendQueue.remove (0)
-          remainingSentLength -= bs.length
-        case bs =>
-          sendQueue (0) = bs.drop (remainingSentLength.toInt)
-          remainingSentLength = 0
-      }
-    }
+    var numConsumed = 0
+    while (numConsumed < sendQueue.size && sendQueue(numConsumed).remaining == 0) numConsumed += 1
+    sendQueue.remove(0, numConsumed)
 
     self ! TrySend
   }

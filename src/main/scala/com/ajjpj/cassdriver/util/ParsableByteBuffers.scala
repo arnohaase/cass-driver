@@ -8,7 +8,7 @@ import java.nio.charset.Charset
   * This is a thin abstraction on top of ByteBuffer, providing support for all primitives required by the Cassandra
   *  spec and treating a sequence of ByteBuffers as a single parsable entity.
   */
-trait ParsableByteSequence {
+trait ParsableByteBuffers {
   def remaining: Int
 
   def mark(): Unit
@@ -23,12 +23,12 @@ trait ParsableByteSequence {
   def longString(): String
 }
 
-object ParsableByteSequence {
+object ParsableByteBuffers {
   private val utf8 = Charset.forName("utf-8")
 
-  def apply(buffers: Seq[ByteBuffer]): ParsableByteSequence = new ConcatParsableByteSequence(buffers)
+  def apply(buffers: Seq[ByteBuffer]): ParsableByteBuffers = new ConcatParsableByteSequence(buffers)
 
-  private class ConcatParsableByteSequence(private var buffers: Seq[ByteBuffer]) extends ParsableByteSequence {
+  private class ConcatParsableByteSequence(private var buffers: Seq[ByteBuffer]) extends ParsableByteBuffers {
     private def head = buffers.head
 
     //noinspection ScalaUnnecessaryParentheses

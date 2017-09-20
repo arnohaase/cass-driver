@@ -22,6 +22,11 @@ tuning / benchmarking
 * Netty, esp. epoll-native support
 * DirectByteBuffer
 
+documentation / links
+---------------------
+* http://docs.datastax.com/en/developer/java-driver/3.1/manual/native_protocol/
+* https://github.com/apache/cassandra/blob/trunk/doc/native_protocol_v4.spec
+
 ideas
 -----
 * Mock 'connection' implementation --> in-memory Cassandra

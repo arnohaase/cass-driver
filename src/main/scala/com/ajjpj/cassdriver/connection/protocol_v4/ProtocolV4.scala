@@ -3,9 +3,8 @@ package com.ajjpj.cassdriver.connection.protocol_v4
 import java.nio.charset.Charset
 import java.nio.{ByteBuffer, ByteOrder}
 
-import akka.util.{ByteString, ByteStringBuilder}
-import com.ajjpj.cassdriver.connection.api.{CassConsistency, CassTimestamp, QueryRequest, QueryRequestFlags}
-import com.ajjpj.cassdriver.util.ParsableByteSequence
+import com.ajjpj.cassdriver.connection.api.{CassConsistency, QueryRequest, QueryRequestFlags}
+import com.ajjpj.cassdriver.util.{ByteBuffersBuilder, ParsableByteBuffers}
 
 
 /**
@@ -38,20 +37,39 @@ object ProtocolV4 {
   final val utf8 = Charset.forName("utf-8")
 
 
-  def createStartupMessage (stream: Int, cqlVersion: String): ByteString = {
+  def createStartupMessage (stream: Int, cqlVersion: String): Array[ByteBuffer] = {
     //TODO compression
     //TODO tracing
 
-    new CassandraFrameBuilder(MessageFlags(false, false, false), stream, OPCODE_STARTUP)
-      .stringMap("CQL_VERSION" -> cqlVersion) //TODO CQL version enum
-      .buildByteString()
+    buildFrame(MessageFlags(false, false, false), stream, OPCODE_STARTUP)(bw => {
+      bw.writeStringMap("CQL_VERSION" -> cqlVersion) //TODO CQL version enum
+    })
+  }
+
+  private def buildFrame(msgFlags: MessageFlags, stream: Int, opCode: Int)(bodyWriter: ByteBuffersBuilder => Unit): Array[ByteBuffer] = {
+    val result = new ByteBuffersBuilder
+
+    // header
+    result.writeByte(ProtocolV4.VERSION_REQUEST)
+    result.writeByte(msgFlags.b)
+    result.writeShort(stream)
+    result.writeByte(opCode)
+
+    result.writeInt(0) // placeholder for the actual body length, which we know only know when we are finished
+    val bodySizeBuffer = result.snapshot
+    val bodySizePos = bodySizeBuffer.position - 4
+
+    // body
+    bodyWriter(result)
+
+    bodySizeBuffer.putInt(bodySizePos, result.size - HEADER_LENGTH)
+
+    result.build()
   }
 
   //TODO make this return 'CassFrame' rather than 'ByteString' --> compression
-  def createQueryMessage (stream: Int, queryRequest: QueryRequest) = {
-    val body = {
-      val out = new ByteStringBuilder
-
+  def createQueryMessage (stream: Int, queryRequest: QueryRequest): Array[ByteBuffer] = {
+    buildFrame(MessageFlags(false, false, false), stream, OPCODE_QUERY)(bw => {
       val queryFlags = QueryRequestFlags (
         hasValues = queryRequest.hasParams,
         skipMetadata = queryRequest.skipMetadata,
@@ -62,20 +80,15 @@ object ProtocolV4 {
         withNamedValues = queryRequest.hasNamedParams
       )
 
-      writeLongString(out, queryRequest.query)
-      writeConsistency(out, queryRequest.consistency)
-      writeByte(out, queryFlags.b)
-      if (queryRequest.hasParams) writeBytes(out, queryRequest.params.toArray) //TODO tuning this copies twice
-      writeInt(out, queryRequest.resultPageSize)
-      queryRequest.pagingState.foreach (x => writeBytes(out, x.toArray)) //TODO tuning this copies twice
-      if (queryFlags.hasSerialConsistency) writeConsistency(out, queryRequest.serialConsistency)
-      queryRequest.timestamp.foreach (writeTimestamp(out, _))
-
-      out.result()
-    }
-
-    CassandraFrame(MessageFlags(false, false, false), stream, OPCODE_QUERY, body)
-      .asByteString
+      bw.writeLongString(queryRequest.query)
+      bw.writeConsistency(queryRequest.consistency)
+      bw.writeByte(queryFlags.b)
+      if (queryRequest.hasParams) bw.writeBytes(queryRequest.params.toArray) //TODO tuning this copies twice
+      bw.writeInt(queryRequest.resultPageSize)
+      queryRequest.pagingState.foreach (x => bw.writeBytes(x.toArray)) //TODO tuning this copies twice
+      if (queryFlags.hasSerialConsistency) bw.writeConsistency(queryRequest.serialConsistency)
+      queryRequest.timestamp.foreach (bw.writeTimestamp)
+    })
   }
 
   /**
@@ -88,7 +101,7 @@ object ProtocolV4 {
     *         returned) and are assumed to invalidate the entire connection
     */
   def parseResponse(raw: Seq[ByteBuffer]): Option[CassResponse] = {
-    val frame = ParsableByteSequence(raw)
+    val frame = ParsableByteBuffers(raw)
 
     if (frame.remaining < HEADER_LENGTH) {
       // the buffer does not even contain the entire header - it's no use trying to parse anything
@@ -111,66 +124,29 @@ object ProtocolV4 {
       else {
         opcode match {
           case OPCODE_ERROR => Some(parseError(flags, stream, bodyLength, frame))
-          case OPCODE_READY => Some(parseReady (flags, stream, bodyLength))
-          case OPCODE_RESULT => Some(parseResult (flags, stream, bodyLength, frame))
+          case OPCODE_READY => Some(parseReadyResponse (flags, stream, bodyLength))
+          case OPCODE_RESULT => Some(parseResultResponse (flags, stream, bodyLength, frame))
           case _ => throw new IllegalArgumentException (s"unsupported response opcode $opcode") //TODO error handling
         }
       }
     }
   }
 
-  private def dump(bs: ByteString): Unit = {
-    println (bs.map(x => String.format("%02x", int2Integer(x & 0xff))).mkString(" "))
-    println (bs.map(x => (x & 0xff).toChar).mkString)
-  }
+//  private def dump(bs: ByteString): Unit = {
+//    println (bs.map(x => String.format("%02x", int2Integer(x & 0xff))).mkString(" "))
+//    println (bs.map(x => (x & 0xff).toChar).mkString)
+//  }
 
-  private def parseResult(flags: MessageFlags, stream: Int, bodyLength: Int, frame: ParsableByteSequence): CassResponse = ???
+  private def parseResultResponse(flags: MessageFlags, stream: Int, bodyLength: Int, frame: ParsableByteBuffers): CassResponse = ???
 
-  private def parseError(flags: MessageFlags, stream: Int, bodyLength: Int, frame: ParsableByteSequence): CassResponse = {
+  private def parseError(flags: MessageFlags, stream: Int, bodyLength: Int, frame: ParsableByteBuffers): CassResponse = {
     val errorCode = frame.int()
     val errorMessage = frame.shortString()
     ErrorResponse(HEADER_LENGTH + bodyLength, flags, stream, errorCode, errorMessage)
   }
 
-  private def parseReady(flags: MessageFlags, stream: Int, length: Int): CassResponse = {
+  private def parseReadyResponse(flags: MessageFlags, stream: Int, length: Int): CassResponse = {
     require(length == 0)
     ReadyResponse(flags, stream)
   }
-
-  // ---- primitives: write
-
-  def writeByte(out: ByteStringBuilder, b: Int) = out.putByte(b.asInstanceOf[Byte])
-  def writeShort(out: ByteStringBuilder, s: Int) = {
-    writeByte(out, (s >> 8) & 0xff) //NB: shorts are *unsigned* per spec
-    writeByte(out, (s >> 0) & 0xff)
-  }
-  def writeInt(out: ByteStringBuilder, i: Int) = out.putInt(i)
-  def writeLong(out: ByteStringBuilder, l: Long) = out.putLong(l)
-
-  def writeBytes(out: ByteStringBuilder, bytes: Array[Byte]): Unit = {
-    writeInt(out, bytes.length)
-    out.putBytes(bytes)
-  }
-
-  def writeShortString(out: ByteStringBuilder, s: String) = {
-    val bytes = s.getBytes(utf8)
-    writeShort(out, bytes.length)
-    out.putBytes(bytes)
-  }
-  def writeLongString(out: ByteStringBuilder, s: String) = {
-    val bytes = s.getBytes(utf8)
-    writeInt(out, bytes.length)
-    out.putBytes(bytes)
-  }
-
-  def writeStringMap(out: ByteStringBuilder, kvs: (String,String)*) = {
-    writeShort(out, kvs.length)
-    for(kv <- kvs) {
-      writeShortString(out, kv._1)
-      writeShortString(out, kv._2)
-    }
-  }
-
-  def writeConsistency(out: ByteStringBuilder, consistency: CassConsistency) = writeShort(out, consistency.v)
-  def writeTimestamp(out: ByteStringBuilder, timestamp: CassTimestamp) = writeLong(out, timestamp.l)
 }

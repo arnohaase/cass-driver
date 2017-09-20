@@ -9,18 +9,18 @@ case class QueryRequest(query: String, consistency: CassConsistency, skipMetadat
                         resultPageSize: Int, pagingState: Option[ByteString], serialConsistency: CassConsistency = CassConsistency.SERIAL, timestamp: Option[CassTimestamp] = None)
 
 object QueryRequest {
-  def serParams(columnTypes: Seq[CassType], values: Seq[Any])(implicit cassValues: CassValues): ByteString = {
-    require(columnTypes.size == values.size)
-
-    if (values.isEmpty) // this is an optimization TODO and requires the 'values' flag to be unset if there are no parameters
-      ByteString.empty
-    else {
-      val out = new ByteStringBuilder
-      ProtocolV4.writeShort(out, values.size)
-      for (i <- values.indices) cassValues.serialize(out, values(i), columnTypes(i))
-      out.result ()
-    }
-  }
+//  def serParams(columnTypes: Seq[CassType], values: Seq[Any])(implicit cassValues: CassValues): ByteString = {
+//    require(columnTypes.size == values.size)
+//
+//    if (values.isEmpty) // this is an optimization TODO and requires the 'values' flag to be unset if there are no parameters
+//      ByteString.empty
+//    else {
+//      val out = new ByteStringBuilder
+//      ProtocolV4.writeShort(out, values.size)
+//      for (i <- values.indices) cassValues.serialize(out, values(i), columnTypes(i))
+//      out.result ()
+//    }
+//  }
 }
 
 class QueryRequestFlags(val b: Byte) extends AnyVal {
