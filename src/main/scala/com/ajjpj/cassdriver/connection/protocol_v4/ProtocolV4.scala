@@ -1,10 +1,11 @@
 package com.ajjpj.cassdriver.connection.protocol_v4
 
-import java.nio.ByteOrder
 import java.nio.charset.Charset
+import java.nio.{ByteBuffer, ByteOrder}
 
 import akka.util.{ByteString, ByteStringBuilder}
 import com.ajjpj.cassdriver.connection.api.{CassConsistency, CassTimestamp, QueryRequest, QueryRequestFlags}
+import com.ajjpj.cassdriver.util.ParsableByteSequence
 
 
 /**
@@ -81,36 +82,30 @@ object ProtocolV4 {
     * @param raw The buffers with currently unprocessed response data. There may be more than one such buffer, and
     *            a single response can span an arbitrary number of such responses - the response stream is split into
     *            buffers by low-level network operations.
-    * @param offs The offset of the first unprocessed byte in the first buffer
     *
     * @return The parsed response message, if the 'raw' parameter contains the entire message, or None if more data
     *         is required to complete parsing. Invalid responses trigger exceptions (rather than causing None to be
     *         returned) and are assumed to invalidate the entire connection
     */
-  def parseResponse(raw: Seq[ByteString], offs: Int): Option[CassResponse] = {
-    val bs: ByteString = if (raw.isEmpty)
-      ByteString.empty
-    else raw
-      .tail
-      .foldLeft(raw.head)((r,it) => r ++ it)
-      .drop(offs)
+  def parseResponse(raw: Seq[ByteBuffer]): Option[CassResponse] = {
+    val frame = ParsableByteSequence(raw)
 
-    if (bs.length < HEADER_LENGTH) {
+    if (frame.remaining < HEADER_LENGTH) {
       // the buffer does not even contain the entire header - it's no use trying to parse anything
       None
     }
     else {
-      val frame = new ByteStringParser(bs)
-
-      require ((frame.readByte() & 0xff) == VERSION_RESPONSE)
-      val flags = new MessageFlags(frame.readByte().asInstanceOf[Byte])
-      val stream = frame.readShort()
-      val opcode = frame.readByte()
-      val bodyLength = frame.readInt()
+      frame.mark()
+      require (frame.byte == VERSION_RESPONSE)
+      val flags = new MessageFlags (frame.byte().asInstanceOf[Byte])
+      val stream = frame.short()
+      val opcode = frame.byte()
+      val bodyLength = frame.int()
       require (bodyLength >= 0)
       require (bodyLength <= Integer.MAX_VALUE - HEADER_LENGTH) //TODO this formally deviates from the spec, but arrays (and ByteString etc.) are indexed by int, so being 100% compliant would be painful
 
-      if (bs.length < HEADER_LENGTH + bodyLength) {
+      if (frame.remaining < bodyLength) {
+        frame.reset()
         None
       }
       else {
@@ -129,11 +124,11 @@ object ProtocolV4 {
     println (bs.map(x => (x & 0xff).toChar).mkString)
   }
 
-  private def parseResult(flags: MessageFlags, stream: Int, bodyLength: Int, frame: ByteStringParser): CassResponse = ???
+  private def parseResult(flags: MessageFlags, stream: Int, bodyLength: Int, frame: ParsableByteSequence): CassResponse = ???
 
-  private def parseError(flags: MessageFlags, stream: Int, bodyLength: Int, frame: ByteStringParser): CassResponse = {
-    val errorCode = frame.readInt()
-    val errorMessage = frame.readShortString()
+  private def parseError(flags: MessageFlags, stream: Int, bodyLength: Int, frame: ParsableByteSequence): CassResponse = {
+    val errorCode = frame.int()
+    val errorMessage = frame.shortString()
     ErrorResponse(HEADER_LENGTH + bodyLength, flags, stream, errorCode, errorMessage)
   }
 

@@ -26,11 +26,12 @@ object AsyncSocketChannelCassandraConnection {
   private case object TrySend
   private case class DataSent(numBytes: Long)
   private case object TriggerRead
-  private case class RawDataFromServer (data: ByteString)
+  private case class RawDataFromServer (data: ByteBuffer) // The sender relinquishes all references to the ByteBuffer when sending it via this message
 }
 
 class AsyncSocketChannelCassandraConnection (config: CassandraConnectionConfig, owner: ActorRef) extends Actor with CassLogging {
   import AsyncSocketChannelCassandraConnection._
+
 
   //TODO performance logging, performance monitoring API
 
@@ -41,13 +42,13 @@ class AsyncSocketChannelCassandraConnection (config: CassandraConnectionConfig, 
     override def completed (result: Void, attachment: String) = self ! Initialized
   })
 
-  val readBuffer = ByteBuffer.allocate(16384) //TODO tuning measure if allocateDirect improves performance
+  val readBuffer = ByteBuffer.allocateDirect(16384) //TODO tuning measure if allocateDirect improves performance
 
   /**
     * raw snippets sent from the server, stored in chronological order. Presence of more than one item may be due
     *  to back logging, or because a single Response spans several chunks
     */
-  val receivedQueue = mutable.ArrayBuffer.empty[ByteString]
+  val receivedQueue = mutable.ArrayBuffer.empty[ByteBuffer]
 
   /**
     * Send frames are queued so that send operations don't overlap: a frame is sent only after the previous frame
@@ -98,10 +99,10 @@ class AsyncSocketChannelCassandraConnection (config: CassandraConnectionConfig, 
     case TriggerRead =>
       triggerRead()
 
-    case RawDataFromServer(bs) =>
-      receivedQueue += bs
-      tryParse()
+    case RawDataFromServer(bb) =>
+      receivedQueue += bb
 
+        tryParse ()
     case msg@Failure(th) =>
       log.error(th, "error in connection - terminating connection")
       context.stop(self)
@@ -129,7 +130,7 @@ class AsyncSocketChannelCassandraConnection (config: CassandraConnectionConfig, 
 
   @tailrec
   private def tryParse(): Unit = {
-    ProtocolV4.parseResponse (receivedQueue, 0) match {
+    ProtocolV4.parseResponse (receivedQueue) match {
       case Some(msg) =>
         inFlight.get (msg.stream) match {
           case Some(InFlightData(replyTo)) =>
@@ -140,19 +141,9 @@ class AsyncSocketChannelCassandraConnection (config: CassandraConnectionConfig, 
         inFlight -= msg.stream
 
         // remove consumed raw data
-        var remainingLength = msg.numBytes
-        while (remainingLength > 0) {
-          receivedQueue(0) match {
-            case bs if bs.length <= remainingLength =>
-              // the first ByteString was consumed completely --> drop it
-              receivedQueue.remove(0)
-              remainingLength -= bs.length
-            case bs =>
-              // the first ByteString was consumed partly --> slice it
-              receivedQueue(0) = bs.drop(remainingLength)
-              remainingLength = 0
-          }
-        }
+        var numConsumed = 0
+        while (numConsumed < receivedQueue.size && receivedQueue(numConsumed).remaining == 0) numConsumed += 1
+        receivedQueue.remove(0, numConsumed)
 
         tryParse()
       case None =>
@@ -175,7 +166,6 @@ class AsyncSocketChannelCassandraConnection (config: CassandraConnectionConfig, 
         .toArray
 
       //TODO timeout
-      //TODO tuning use channel.write(Array[ByteBuffer]
 
       channel.write(sendByteBuffers, 0, sendByteBuffers.length, 0, TimeUnit.SECONDS, "", new CompletionHandler[java.lang.Long, String] {
         override def failed (exc: Throwable, attachment: String)     = {
@@ -225,8 +215,13 @@ class AsyncSocketChannelCassandraConnection (config: CassandraConnectionConfig, 
       override def completed (result: Integer, attachment: String) = {
         log.debug("*** read completed")
 
+        readBuffer.flip()
+        val bb = ByteBuffer.allocate(result)
+        bb.put(readBuffer)
+        bb.flip()
+
         // These messages must arrive in the same order they were sent, and fortunately Akka guarantees that
-        self ! RawDataFromServer (ByteString.fromArray (readBuffer.array (), 0, readBuffer.position ()))
+        self ! RawDataFromServer (bb)
         self ! TriggerRead
       }
     })
