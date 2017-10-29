@@ -7,7 +7,7 @@ import java.util.concurrent.TimeUnit
 
 import akka.actor.Status.Failure
 import akka.actor.{Actor, ActorRef}
-import com.ajjpj.cassdriver.connection.api.QueryRequest
+import com.ajjpj.cassdriver.connection.messages.CassQueryRequest
 import com.ajjpj.cassdriver.connection.protocol_v4.ProtocolV4
 import com.ajjpj.cassdriver.util.CassLogging
 
@@ -88,7 +88,7 @@ class AsyncSocketChannelCassandraConnection (config: CassandraConnectionConfig, 
   val processing: Receive = {
     case StartupRequest(cqlVersion) =>
       onStartupRequest(cqlVersion)
-    case msg: QueryRequest =>
+    case msg: CassQueryRequest =>
       onQueryRequest(msg)
 
     case TrySend =>
@@ -118,7 +118,7 @@ class AsyncSocketChannelCassandraConnection (config: CassandraConnectionConfig, 
     registerAndSend (ProtocolV4.createStartupMessage (nextStreamNumber, cqlVersion))
   }
 
-  private def onQueryRequest(msg: QueryRequest): Unit = {
+  private def onQueryRequest(msg: CassQueryRequest): Unit = {
     registerAndSend (ProtocolV4.createQueryMessage(nextStreamNumber, msg))
   }
 

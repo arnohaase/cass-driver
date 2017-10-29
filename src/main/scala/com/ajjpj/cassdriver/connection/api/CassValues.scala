@@ -1,5 +1,6 @@
 package com.ajjpj.cassdriver.connection.api
 
+import com.ajjpj.cassdriver.connection.metadata.{CassType, CassTypeBoolean, CassTypeInt, CassTypeString}
 import com.ajjpj.cassdriver.util.ByteBuffersBuilder
 
 

@@ -14,13 +14,16 @@ trait ParsableByteBuffers {
   def mark(): Unit
   def reset(): Unit
 
-  def byte(): Int
-  def short(): Int
-  def int(): Int
-  def long(): Long
+  def readByte (): Int
+  def readUnsignedShort (): Int
+  def readInt (): Int
+  def readLong (): Long
 
-  def shortString(): String
-  def longString(): String
+  def readString (): String
+  def readLongString (): String
+  def stringRaw (numBytes: Int): String
+
+  def readBytes (): CassBytes
 }
 
 object ParsableByteBuffers {
@@ -44,58 +47,68 @@ object ParsableByteBuffers {
     override def mark() = head.mark()
     override def reset() = head.reset() // This implicit deals with the case when 'head' became consumed and was discarded since calling mark(), in which case we fail explicitly. That is sufficient for current use cases of mark() / reset()
 
-    override def byte() = {
+    override def readByte () = {
       headRemaining // trigger progression to next buffer if necessary
       head.get & 0xff
     }
 
     // *unsigned* short
-    override def short() = if (nextUnfragmented(2))
+    override def readUnsignedShort () = if (nextUnfragmented(2))
       head.getShort & 0xffff
     else {
       var result = 0
-      result += byte() << 8
-      result += byte()
+      result += readByte() << 8
+      result += readByte()
       result
     }
 
 
-    override def int() = if (nextUnfragmented(4))
+    override def readInt () = if (nextUnfragmented(4))
       head.getInt
     else {
       var result = 0
-      result += byte() << 24
-      result += byte() << 16
-      result += byte() << 8
-      result += byte()
+      result += readByte() << 24
+      result += readByte() << 16
+      result += readByte() << 8
+      result += readByte()
       result
     }
 
-    override def long() = if (nextUnfragmented(8))
+    override def readLong () = if (nextUnfragmented(8))
       head.getLong
     else {
       var result = 0L
-      result += byte() << 56
-      result += byte() << 48
-      result += byte() << 40
-      result += byte() << 32
-      result += byte() << 24
-      result += byte() << 16
-      result += byte() << 8
-      result += byte()
+      result += readByte() << 56
+      result += readByte() << 48
+      result += readByte() << 40
+      result += readByte() << 32
+      result += readByte() << 24
+      result += readByte() << 16
+      result += readByte() << 8
+      result += readByte()
       result
     }
 
-    override def shortString() = stringRaw(short())
-    override def longString() = stringRaw(int())
+    override def readString () = stringRaw(readUnsignedShort())
+    override def readLongString () = stringRaw(readInt())
 
-    private def stringRaw(numBytes: Int): String = {
+    override def stringRaw(numBytes: Int): String = {
       if (nextUnfragmented(numBytes)) {
         val cb = utf8.decode(head)
         new String (cb.array(), 0, cb.position)
       }
       else {
         ??? //TODO copy into a contiguous byte array, then decode
+      }
+    }
+
+    override def readBytes (): CassBytes = {
+      val length = readInt()
+      if (length < 0) CassBytes.NULL
+      else {
+        val result = Array.ofDim[Byte](length)
+        for (i <- 0 until length) result(i) = readByte().asInstanceOf[Byte] //TODO tuning bulk read - but beware of fragmentation
+        new CassBytes (result)
       }
     }
   }

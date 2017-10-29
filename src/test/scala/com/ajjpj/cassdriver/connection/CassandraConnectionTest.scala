@@ -5,8 +5,9 @@ import java.net.InetAddress
 import akka.actor.Props
 import akka.util.ByteString
 import com.ajjpj.cassdriver.AbstractCassDriverTest
-import com.ajjpj.cassdriver.connection.api.{CassConsistency, QueryRequest}
-import com.ajjpj.cassdriver.connection.protocol_v4.{ReadyResponse, CassResponse}
+import com.ajjpj.cassdriver.connection.api.CassConsistency
+import com.ajjpj.cassdriver.connection.messages.CassQueryRequest
+import com.ajjpj.cassdriver.connection.metadata.{CassResponse, ReadyResponse}
 
 
 class CassandraConnectionTest extends AbstractCassDriverTest {
@@ -19,7 +20,7 @@ class CassandraConnectionTest extends AbstractCassDriverTest {
     val reply = expectMsgType[ReadyResponse]
     println (reply)
 
-    conn ! QueryRequest("select * from control2.locks", CassConsistency.ONE, false, false, false, ByteString.empty, 100, None)
+    conn ! CassQueryRequest("select * from control2.locks", CassConsistency.ONE, false, false, false, ByteString.empty, 100, None)
     val reply2 = expectMsgType[CassResponse]
     println (reply2)
     

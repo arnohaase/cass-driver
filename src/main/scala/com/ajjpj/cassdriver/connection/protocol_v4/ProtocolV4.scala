@@ -3,7 +3,10 @@ package com.ajjpj.cassdriver.connection.protocol_v4
 import java.nio.charset.Charset
 import java.nio.{ByteBuffer, ByteOrder}
 
-import com.ajjpj.cassdriver.connection.api.{CassConsistency, QueryRequest, QueryRequestFlags}
+import com.ajjpj.cassdriver.connection.api.CassConsistency
+import com.ajjpj.cassdriver.connection.messages.CassQueryRequest
+import com.ajjpj.cassdriver.connection.messages.CassQueryRequest.CassQueryRequestFlags
+import com.ajjpj.cassdriver.connection.metadata.CassResponse
 import com.ajjpj.cassdriver.util.{ByteBuffersBuilder, ParsableByteBuffers}
 
 
@@ -68,9 +71,9 @@ object ProtocolV4 {
   }
 
   //TODO make this return 'CassFrame' rather than 'ByteString' --> compression
-  def createQueryMessage (stream: Int, queryRequest: QueryRequest): Array[ByteBuffer] = {
+  def createQueryMessage (stream: Int, queryRequest: CassQueryRequest): Array[ByteBuffer] = {
     buildFrame(MessageFlags(false, false, false), stream, OPCODE_QUERY)(bw => {
-      val queryFlags = QueryRequestFlags (
+      val queryFlags = CassQueryRequestFlags (
         hasValues = queryRequest.hasParams,
         skipMetadata = queryRequest.skipMetadata,
         hasPageSize = true,
@@ -109,11 +112,11 @@ object ProtocolV4 {
     }
     else {
       frame.mark()
-      require (frame.byte == VERSION_RESPONSE)
-      val flags = new MessageFlags (frame.byte().asInstanceOf[Byte])
-      val stream = frame.short()
-      val opcode = frame.byte()
-      val bodyLength = frame.int()
+      require (frame.readByte == VERSION_RESPONSE)
+      val flags = new MessageFlags (frame.readByte().asInstanceOf[Byte])
+      val stream = frame.readUnsignedShort()
+      val opcode = frame.readByte()
+      val bodyLength = frame.readInt()
       require (bodyLength >= 0)
       require (bodyLength <= Integer.MAX_VALUE - HEADER_LENGTH) //TODO this formally deviates from the spec, but arrays (and ByteString etc.) are indexed by int, so being 100% compliant would be painful
 
@@ -122,10 +125,11 @@ object ProtocolV4 {
         None
       }
       else {
+        val parser = new CassResponseParser(flags, stream, bodyLength, frame)
         opcode match {
-          case OPCODE_ERROR => Some(parseError(flags, stream, bodyLength, frame))
-          case OPCODE_READY => Some(parseReadyResponse (flags, stream, bodyLength))
-          case OPCODE_RESULT => Some(parseResultResponse (flags, stream, bodyLength, frame))
+          case OPCODE_ERROR => Some(parser.parseError())
+          case OPCODE_READY => Some(parser.parseReady())
+          case OPCODE_RESULT => Some(parser.parseResult())
           case _ => throw new IllegalArgumentException (s"unsupported response opcode $opcode") //TODO error handling
         }
       }
@@ -136,17 +140,4 @@ object ProtocolV4 {
 //    println (bs.map(x => String.format("%02x", int2Integer(x & 0xff))).mkString(" "))
 //    println (bs.map(x => (x & 0xff).toChar).mkString)
 //  }
-
-  private def parseResultResponse(flags: MessageFlags, stream: Int, bodyLength: Int, frame: ParsableByteBuffers): CassResponse = ???
-
-  private def parseError(flags: MessageFlags, stream: Int, bodyLength: Int, frame: ParsableByteBuffers): CassResponse = {
-    val errorCode = frame.int()
-    val errorMessage = frame.shortString()
-    ErrorResponse(HEADER_LENGTH + bodyLength, flags, stream, errorCode, errorMessage)
-  }
-
-  private def parseReadyResponse(flags: MessageFlags, stream: Int, length: Int): CassResponse = {
-    require(length == 0)
-    ReadyResponse(flags, stream)
-  }
 }
