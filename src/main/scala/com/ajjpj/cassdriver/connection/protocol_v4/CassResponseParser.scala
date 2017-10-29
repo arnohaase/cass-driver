@@ -32,8 +32,46 @@ class CassResponseParser(flags: MessageFlags, stream: Int, bodyLength: Int, fram
 
   private def parseRowsResult() = {
     val rowsFlags = new RowsResultFlags(frame.readInt())
+    println (rowsFlags)
     val colCount = frame.readInt()
     val pagingState = if (rowsFlags.hasMorePages) frame.readBytes() else CassBytes.NULL
+
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+//    println ((frame.readByte() & 0xff).toHexString)
+
+//    println (frame.readUnsignedShort())
+
+//    val s = frame.readString()
+//    println (s + "||")
+
     val globalTablesSpec = if(rowsFlags.hasGlobalTablesSpec) Some(FullyQualifiedTableName(frame.readString(), frame.readString())) else None
 
     //TODO global_table_spec

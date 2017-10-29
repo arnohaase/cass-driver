@@ -20,7 +20,8 @@ class CassandraConnectionTest extends AbstractCassDriverTest {
     val reply = expectMsgType[ReadyResponse]
     println (reply)
 
-    conn ! CassQueryRequest("select * from control2.locks", CassConsistency.ONE, false, false, false, ByteString.empty, 100, None)
+    conn ! CassQueryRequest("select email, guest from control2.accounts", CassConsistency.ONE, skipMetadata=false, hasParams=false, hasNamedParams=false, ByteString.empty, 100, None)
+//    conn ! CassQueryRequest("select * from control2.locks", CassConsistency.ONE, skipMetadata=false, hasParams=false, hasNamedParams=false, ByteString.empty, 100, None)
     val reply2 = expectMsgType[CassResponse]
     println (reply2)
     

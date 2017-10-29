@@ -94,8 +94,14 @@ object ParsableByteBuffers {
 
     override def stringRaw(numBytes: Int): String = {
       if (nextUnfragmented(numBytes)) {
+        val prevLimit = head.limit
+        head.limit(head.position + numBytes)
+
         val cb = utf8.decode(head)
-        new String (cb.array(), 0, cb.position)
+
+        head.limit(prevLimit)
+
+        new String (cb.array(), 0, cb.limit)
       }
       else {
         ??? //TODO copy into a contiguous byte array, then decode

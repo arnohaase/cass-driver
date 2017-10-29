@@ -101,8 +101,7 @@ class AsyncSocketChannelCassandraConnection (config: CassandraConnectionConfig, 
 
     case RawDataFromServer(bb) =>
       receivedQueue += bb
-
-        tryParse ()
+      tryParse ()
     case msg@Failure(th) =>
       log.error(th, "error in connection - terminating connection")
       context.stop(self)

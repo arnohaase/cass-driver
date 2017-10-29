@@ -27,6 +27,8 @@ object CassRowsResult {
     def hasGlobalTablesSpec = (i & 0x01) != 0
     def hasMorePages        = (i & 0x02) != 0
     def hasNoMetadata       = (i & 0x04) != 0
+
+    override def toString = s"RowsResultFlags(${i.toHexString})" //TODO clear text flags
   }
 
   case class CassRow(values: Vector[Any])
