@@ -4,9 +4,8 @@ import java.nio.charset.Charset
 import java.nio.{ByteBuffer, ByteOrder}
 
 import com.ajjpj.cassdriver.connection.api.CassConsistency
-import com.ajjpj.cassdriver.connection.messages.CassQueryRequest
+import com.ajjpj.cassdriver.connection.messages.{CassQueryRequest, CassResponse}
 import com.ajjpj.cassdriver.connection.messages.CassQueryRequest.CassQueryRequestFlags
-import com.ajjpj.cassdriver.connection.metadata.CassResponse
 import com.ajjpj.cassdriver.util.{ByteBuffersBuilder, ParsableByteBuffers}
 
 

@@ -6,8 +6,7 @@ import akka.actor.Props
 import akka.util.ByteString
 import com.ajjpj.cassdriver.AbstractCassDriverTest
 import com.ajjpj.cassdriver.connection.api.CassConsistency
-import com.ajjpj.cassdriver.connection.messages.CassQueryRequest
-import com.ajjpj.cassdriver.connection.metadata.{CassResponse, ReadyResponse}
+import com.ajjpj.cassdriver.connection.messages.{CassQueryRequest, CassResponse, ReadyResponse}
 
 
 class CassandraConnectionTest extends AbstractCassDriverTest {

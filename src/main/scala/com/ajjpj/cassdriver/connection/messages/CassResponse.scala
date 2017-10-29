@@ -1,6 +1,6 @@
-package com.ajjpj.cassdriver.connection.metadata
+package com.ajjpj.cassdriver.connection.messages
 
-import com.ajjpj.cassdriver.connection.metadata.CassRowsResult.{CassRow, RowsResultFlags}
+import com.ajjpj.cassdriver.connection.messages.CassRowsResult.{CassRow, RowsResultFlags}
 import com.ajjpj.cassdriver.connection.protocol_v4.{MessageFlags, ProtocolV4}
 
 sealed trait CassResponse {
@@ -28,7 +28,10 @@ object CassRowsResult {
     def hasMorePages        = (i & 0x02) != 0
     def hasNoMetadata       = (i & 0x04) != 0
 
-    override def toString = s"RowsResultFlags(${i.toHexString})" //TODO clear text flags
+    override def toString = {
+      def flag(name: String, value: Boolean) = s"$name: $value"
+      s"MessageFlags: (${flag("hasGlobalTablesSpec", hasGlobalTablesSpec)}, ${flag("hasMorePages", hasMorePages)}, ${flag("hasNoMetadata", hasNoMetadata)})"
+    }
   }
 
   case class CassRow(values: Vector[Any])

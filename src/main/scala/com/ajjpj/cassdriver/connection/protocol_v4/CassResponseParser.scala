@@ -1,7 +1,8 @@
 package com.ajjpj.cassdriver.connection.protocol_v4
 
 import com.ajjpj.cassdriver.connection.api.FullyQualifiedTableName
-import com.ajjpj.cassdriver.connection.metadata.CassRowsResult.{CassRow, RowsResultFlags}
+import com.ajjpj.cassdriver.connection.messages.{CassResponse, CassRowsResult, ErrorResponse, ReadyResponse}
+import com.ajjpj.cassdriver.connection.messages.CassRowsResult.{CassRow, RowsResultFlags}
 import com.ajjpj.cassdriver.connection.metadata._
 import com.ajjpj.cassdriver.util.{CassBytes, ParsableByteBuffers}
 
