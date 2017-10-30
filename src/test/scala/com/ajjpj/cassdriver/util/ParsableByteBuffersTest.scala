@@ -151,18 +151,96 @@ class ParsableByteBuffersTest extends AbstractCassDriverTest {
   }
 
   "CassBytes" should "be parsed" in {
-    ???
+    parsableBuffer(0, 0, 0, 0).readBytes().b shouldBe empty
+
+    val b = parsableBuffer(0, 0, 0, 2, 99, 15).readBytes().b
+    b.length should be (2)
+    b(0) should be (99)
+    b(1) should be (15)
+  }
+
+  it should "be parsed if it spans two ByteBuffers" in {
+    val b = ParsableByteBuffers(Seq(buffer(0, 0, 0, 2, 99), buffer(15))).readBytes().b
+    b.length should be (2)
+    b(0) should be (99)
+    b(1) should be (15)
+  }
+
+  it should "be parsed if it spans three ByteBuffers" in {
+    val b = ParsableByteBuffers(Seq(buffer(0, 0, 0, 3, 99), buffer(15), buffer(123))).readBytes().b
+    b.length should be (3)
+    b(0) should be (99)
+    b(1) should be (15)
+    b(2) should be (123)
+  }
+
+  it should "be parsed if it is a big array" in {
+    val byteArray = Array.fill[Byte](0x20000)(25)
+    val b = ParsableByteBuffers(Seq(buffer(0, 2, 0, 0), ByteBuffer.wrap(byteArray))).readBytes().b
+    b.length should be (0x20000)
+    b.forall(_ == 25) should be (true)
+  }
+
+  it should "be parsed as NULL for length < 0" in {
+    parsableBuffer(255, 255, 255, 255).readBytes() should be (CassBytes.NULL)
+    parsableBuffer(128, 0, 0, 0).readBytes() should be (CassBytes.NULL)
+    parsableBuffer(200, 10, 99, 15).readBytes() should be (CassBytes.NULL)
   }
 
   "mark()" should "create a snapshot that can be restored by reset()" in {
-    ???
+    val buf = parsableBuffer(99, 0, 0, 0, 1, 0, 0, 0, 2)
+    buf.readByte() should be (99)
+
+    buf.mark()
+
+    buf.readInt() should be (1)
+    buf.readInt() should be (2)
+
+    buf.reset()
+
+    buf.readInt() should be (1)
+    buf.readInt() should be (2)
+
+    buf.reset()
+
+    buf.readInt() should be (1)
+    buf.readInt() should be (2)
   }
 
   it should "work even if processing progressed to a different ByteBuffer" in {
-    ???
+    val buf = ParsableByteBuffers(Seq(buffer(99, 0), buffer(0, 0), buffer(1, 0), buffer(0, 0, 2, 123)))
+    buf.readByte() should be (99)
+
+    buf.mark()
+
+    buf.readInt() should be (1)
+    buf.readInt() should be (2)
+
+    buf.reset()
+
+    buf.readInt() should be (1)
+    buf.readInt() should be (2)
+
+    buf.reset()
+
+    buf.readInt() should be (1)
+    buf.readInt() should be (2)
   }
 
   "remaining" should "return the total number of unprocessed bytes across all ByteBuffers" in {
-    ???
+    val buf = ParsableByteBuffers(Seq(buffer(99, 0), buffer(0, 0), buffer(1, 0), buffer(0, 0, 2, 123)))
+    buf.remaining should be (10)
+
+    buf.readByte()
+    buf.remaining should be (9)
+
+    buf.readInt()
+    buf.remaining should be (5)
+
+    buf.readInt()
+    buf.remaining should be (1)
+
+    buf.readByte()
+    buf.remaining should be (0)
   }
 }
