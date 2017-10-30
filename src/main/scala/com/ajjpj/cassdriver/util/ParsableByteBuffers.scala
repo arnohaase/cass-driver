@@ -29,9 +29,9 @@ trait ParsableByteBuffers {
 object ParsableByteBuffers {
   private val utf8 = Charset.forName("utf-8")
 
-  def apply(buffers: Seq[ByteBuffer]): ParsableByteBuffers = new ConcatParsableByteSequence(buffers)
+  def apply(buffers: Seq[ByteBuffer]): ParsableByteBuffers = new ConcatParsableByteSequence(buffers.toList)
 
-  private class ConcatParsableByteSequence(private var buffers: Seq[ByteBuffer]) extends ParsableByteBuffers {
+  private class ConcatParsableByteSequence(private var buffers: List[ByteBuffer]) extends ParsableByteBuffers {
     private def head = buffers.head
 
     //noinspection ScalaUnnecessaryParentheses
@@ -44,8 +44,16 @@ object ParsableByteBuffers {
 
     override def remaining = buffers.foldLeft(0)((r,n) => r + n.remaining)
 
-    override def mark() = head.mark()
-    override def reset() = head.reset() // This implicit deals with the case when 'head' became consumed and was discarded since calling mark(), in which case we fail explicitly. That is sufficient for current use cases of mark() / reset()
+    private var snapshot = Option.empty[List[ByteBuffer]]
+    override def mark() = {
+      snapshot = Some(buffers)
+      buffers.foreach(_.mark())
+    }
+    override def reset() = {
+      buffers = snapshot.get
+      buffers.foreach(_.reset())
+    }
+
 
     override def readByte () = {
       headRemaining // trigger progression to next buffer if necessary
@@ -78,13 +86,13 @@ object ParsableByteBuffers {
       head.getLong
     else {
       var result = 0L
-      result += readByte() << 56
-      result += readByte() << 48
-      result += readByte() << 40
-      result += readByte() << 32
-      result += readByte() << 24
-      result += readByte() << 16
-      result += readByte() << 8
+      result += readByte().asInstanceOf[Long] << 56
+      result += readByte().asInstanceOf[Long] << 48
+      result += readByte().asInstanceOf[Long] << 40
+      result += readByte().asInstanceOf[Long] << 32
+      result += readByte().asInstanceOf[Long] << 24
+      result += readByte().asInstanceOf[Long] << 16
+      result += readByte().asInstanceOf[Long] << 8
       result += readByte()
       result
     }
