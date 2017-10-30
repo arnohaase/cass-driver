@@ -33,7 +33,6 @@ class CassResponseParser(flags: MessageFlags, stream: Int, bodyLength: Int, fram
 
   private def parseRowsResult() = {
     val rowsFlags = new RowsResultFlags(frame.readInt())
-    println (rowsFlags)
     val colCount = frame.readInt()
     val pagingState = if (rowsFlags.hasMorePages) frame.readBytes() else CassBytes.NULL
 

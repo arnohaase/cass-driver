@@ -104,7 +104,19 @@ object ParsableByteBuffers {
         new String (cb.array(), 0, cb.limit)
       }
       else {
-        ??? //TODO copy into a contiguous byte array, then decode
+        //TODO tuning incremental decoding - decode the string in chunks to avoid a copy operation (?)
+        val tmp = Array.ofDim[Byte](numBytes)
+        var arrOffs = 0
+        var toBeRead = numBytes
+
+        while (toBeRead > 0) {
+          val numInHead = Math.min(headRemaining, toBeRead)
+          head.get (tmp, arrOffs, numInHead)
+          arrOffs += numInHead
+          toBeRead -= numInHead
+        }
+
+        new String (tmp, utf8)
       }
     }
 
