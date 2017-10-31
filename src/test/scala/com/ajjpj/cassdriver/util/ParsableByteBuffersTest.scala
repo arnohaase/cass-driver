@@ -182,9 +182,9 @@ class ParsableByteBuffersTest extends AbstractCassDriverTest {
   }
 
   it should "be parsed as NULL for length < 0" in {
-    parsableBuffer(255, 255, 255, 255).readBytes() should be (CassBytes.NULL)
-    parsableBuffer(128, 0, 0, 0).readBytes() should be (CassBytes.NULL)
-    parsableBuffer(200, 10, 99, 15).readBytes() should be (CassBytes.NULL)
+    parsableBuffer(255, 255, 255, 255).readBytes() shouldBe null.asInstanceOf[CassBytes]
+    parsableBuffer(128, 0, 0, 0).readBytes() shouldBe null.asInstanceOf[CassBytes]
+    parsableBuffer(200, 10, 99, 15).readBytes() shouldBe null.asInstanceOf[CassBytes]
   }
 
   "mark()" should "create a snapshot that can be restored by reset()" in {

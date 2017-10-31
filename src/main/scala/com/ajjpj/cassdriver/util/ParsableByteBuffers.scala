@@ -92,7 +92,7 @@ object ParsableByteBuffers {
       result += readByte().asInstanceOf[Long] << 32
       result += readByte().asInstanceOf[Long] << 24
       result += readByte().asInstanceOf[Long] << 16
-      result += readByte().asInstanceOf[Long] << 8
+      result += readByte() << 8
       result += readByte()
       result
     }
@@ -130,7 +130,7 @@ object ParsableByteBuffers {
 
     override def readBytes (): CassBytes = {
       val length = readInt()
-      if (length < 0) CassBytes.NULL
+      if (length < 0) null.asInstanceOf[CassBytes]
       else {
         val result = Array.ofDim[Byte](length)
         for (i <- 0 until length) result(i) = readByte().asInstanceOf[Byte] //TODO tuning bulk read - but beware of fragmentation

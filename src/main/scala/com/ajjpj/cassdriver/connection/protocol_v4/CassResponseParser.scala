@@ -34,14 +34,13 @@ class CassResponseParser(flags: MessageFlags, stream: Int, bodyLength: Int, fram
   private def parseRowsResult() = {
     val rowsFlags = new RowsResultFlags(frame.readInt())
     val colCount = frame.readInt()
-    val pagingState = if (rowsFlags.hasMorePages) frame.readBytes() else CassBytes.NULL
+    val pagingState = if (rowsFlags.hasMorePages) frame.readBytes() else null
 
     val globalTablesSpec = if(rowsFlags.hasGlobalTablesSpec) Some(FullyQualifiedTableName(frame.readString(), frame.readString())) else None
 
-    //TODO global_table_spec
-    //TODO no_metadata
-
-    val colSpecs = (1 to colCount).map(_ => {
+    val colSpecs = if (rowsFlags.hasNoMetadata)
+      ???
+    else (1 to colCount).map(_ => {
       val (keyspace, tableName) = globalTablesSpec match {
         case Some(FullyQualifiedTableName(ks, tn)) => (ks, tn)
         case None => (frame.readString(), frame.readString())
@@ -52,7 +51,7 @@ class CassResponseParser(flags: MessageFlags, stream: Int, bodyLength: Int, fram
       CassColumnMetadata(keyspace, tableName, colName, tpe)
     })
 
-    require (colSpecs.size == colCount) // for global_table_spec or no_metadata
+    require (colSpecs.size == colCount) // for no_metadata
 
     val rowsCount = frame.readInt()
 
